@@ -171,9 +171,23 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
        كان بيخلي اللوجو يغطي على جزء من الصورة) */
     padding: 20px 22px 28px;
   }
+  /* 🆕 [floating-logo] نفس حركة "عوم" اللوجو في شاشة complete-profile
+     (logoFloatAnim: 0 → -10px → 0، بحركة sin ناعمة، لوب مستمر) - هنا
+     بنعملها بـ CSS keyframes بدل Animated.Value لأن الصفحة دي HTML
+     عادي. المدة الكاملة 3.4s (1.7s لفوق + 1.7s لتحت) زي الأصل بالظبط. */
+  @keyframes logoFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
   .logo {
     width: 84px; height: 84px; margin: 0 auto 14px; border-radius: 22px;
-    overflow: hidden; background: #FFFFFF; border: 1px solid #ECE7DE;
+    overflow: hidden; background: #FFFFFF;
+    box-shadow: 0 6px 14px rgba(0,0,0,.10);
+    animation: logoFloat 3400ms ease-in-out infinite;
+  }
+  /* لليوزرز اللي مفعّلين "تقليل الحركة" في جهازهم - نوقف الأنيميشن */
+  @media (prefers-reduced-motion: reduce) {
+    .logo { animation: none; }
   }
   .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1 { font-size: 20px; margin: 0 0 6px; font-weight: 800; }
