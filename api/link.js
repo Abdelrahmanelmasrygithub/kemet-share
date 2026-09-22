@@ -10,7 +10,7 @@
 
 // ===================== ⚙️ الإعدادات - عدّليها =====================
 const CONFIG = {
-  APP_NAME: "Pyramid Power", // اسم التطبيق اللي يظهر في الصفحة
+  APP_NAME: "KEMET", // اسم التطبيق اللي يظهر في الصفحة
   APP_SCHEME: "pyramidpower", // لازم يطابق "scheme" في app.json بالظبط
  PLAY_STORE_URL: "https://play.google.com/store/apps/details?id=com.kemet.shop", // لينك التطبيق على Google Play (سيبيه فاضي لو لسه)
   APP_STORE_URL: "", // لينك التطبيق على App Store (سيبيه فاضي لو لسه)
