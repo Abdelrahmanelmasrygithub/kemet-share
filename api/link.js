@@ -147,7 +147,7 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
     font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
   }
   .card {
-    width: 100%; max-width: 380px; background: #fff; border: 1px solid #ECE7DE;
+    width: 100%; max-width: 380px; background: #fff;
     border-radius: 24px; text-align: center; overflow: hidden;
     box-shadow: 0 10px 30px rgba(0,0,0,.06);
   }
@@ -155,11 +155,11 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
      اللوجين. object-fit: contain (مش cover) عشان الصورة كبيرة ونسبة
      أبعادها مش زي اللوجو الصغير المربع، فمش عايزين نقصّها. لو حابة
      تملي المساحة بالكامل حتى لو فيه قص بسيط، غيّري contain لـ cover.
-     الارتفاع 188px (150px + 25%)، وخلفية أوف-وايت فاتحة جدًا (نفس لون
-     خلفية شاشة اللوجين #FAF9F6)، والصورة متراصة لفوق (flex-start) جوه
+     الارتفاع 188px (150px + 25%)، وخلفية بيضاء بنفس درجة خلفية اللوجو
+     (#FFFFFF)، والصورة متراصة لفوق (flex-start) جوه
      الفريم بدل النص عشان تبان "طالعة" لفوق مش لازقة في النص. */
   .illustration {
-    width: 100%; height: 188px; background: #FAF9F6;
+    width: 100%; height: 188px; background: #FFFFFF;
     display: flex; align-items: flex-start; justify-content: center;
   }
   .illustration img {
@@ -173,7 +173,7 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
   }
   .logo {
     width: 84px; height: 84px; margin: 0 auto 14px; border-radius: 22px;
-    overflow: hidden; background: #F0EBE2; border: 1px solid #ECE7DE;
+    overflow: hidden; background: #FFFFFF; border: 1px solid #ECE7DE;
   }
   .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1 { font-size: 20px; margin: 0 0 6px; font-weight: 800; }
