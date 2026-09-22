@@ -10,9 +10,9 @@
 
 // ===================== ⚙️ الإعدادات - عدّليها =====================
 const CONFIG = {
-  APP_NAME: "KEMET", // اسم التطبيق اللي يظهر في الصفحة
+  APP_NAME: "Pyramid Power", // اسم التطبيق اللي يظهر في الصفحة
   APP_SCHEME: "pyramidpower", // لازم يطابق "scheme" في app.json بالظبط
- PLAY_STORE_URL: "https://play.google.com/store/apps/details?id=com.kemet.shop",// لينك التطبيق على Google Play (سيبيه فاضي لو لسه)
+ PLAY_STORE_URL: "https://play.google.com/store/apps/details?id=com.kemet.shop", // لينك التطبيق على Google Play (سيبيه فاضي لو لسه)
   APP_STORE_URL: "", // لينك التطبيق على App Store (سيبيه فاضي لو لسه)
   DEFAULT_LOGO:
     "https://bcktrkpbjacbrquimzrg.supabase.co/storage/v1/object/public/category-images/pyramidpower.png",
@@ -154,23 +154,26 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
   /* 🆕 [illustration] بانر عريض فوق الكارت - نفس الصورة اللي في شاشة
      اللوجين. object-fit: contain (مش cover) عشان الصورة كبيرة ونسبة
      أبعادها مش زي اللوجو الصغير المربع، فمش عايزين نقصّها. لو حابة
-     تملي المساحة بالكامل حتى لو فيه قص بسيط، غيّري contain لـ cover. */
+     تملي المساحة بالكامل حتى لو فيه قص بسيط، غيّري contain لـ cover.
+     الارتفاع 188px (150px + 25%)، وخلفية أوف-وايت فاتحة جدًا (نفس لون
+     خلفية شاشة اللوجين #FAF9F6)، والصورة متراصة لفوق (flex-start) جوه
+     الفريم بدل النص عشان تبان "طالعة" لفوق مش لازقة في النص. */
   .illustration {
-    width: 100%; height: 150px; background: #F0EBE2;
-    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 188px; background: #FAF9F6;
+    display: flex; align-items: flex-start; justify-content: center;
   }
   .illustration img {
     width: 100%; height: 100%; object-fit: contain; display: block;
   }
   .card-body {
-    /* margin-top سالب عشان اللوجو يركب على حافة البانر تحت (زي صورة
-       غلاف بروفايل)، وممكن تشيليه لو عايزة اللوجو يبقى منفصل تمامًا */
-    margin-top: -30px; padding: 0 22px 28px;
+    /* 🆕 مفيش overlap دلوقتي - اللوجو نزل تحت البانر تمامًا من غير ما
+       يركب على حتة منه (padding-top عادي بدل الـ margin السالب اللي
+       كان بيخلي اللوجو يغطي على جزء من الصورة) */
+    padding: 20px 22px 28px;
   }
   .logo {
     width: 84px; height: 84px; margin: 0 auto 14px; border-radius: 22px;
-    overflow: hidden; background: #F0EBE2; border: 3px solid #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,.10); position: relative; z-index: 1;
+    overflow: hidden; background: #F0EBE2; border: 1px solid #ECE7DE;
   }
   .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1 { font-size: 20px; margin: 0 0 6px; font-weight: 800; }
