@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kemet.shop",
+      "sha256_cert_fingerprints": [
+        "04:D8:3D:AE:D7:97:4F:D8:21:E6:38:2F:37:CC:12:D6:99:5D:FD:61:A7:95:9A:DB:8C:B2:04:AF:C0:9B:CC:35"
+      ]
+    }
+  }
+]

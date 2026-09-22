@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["YOURTEAMID.your.ios.bundle.identifier"],
+        "components": [
+          { "/": "/store/*" },
+          { "/": "/store" },
+          { "/": "/offers" }
+        ]
+      }
+    ]
+  }
+}

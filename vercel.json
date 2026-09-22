@@ -1,0 +1,18 @@
+{
+  "rewrites": [
+    { "source": "/store/:id", "destination": "/api/link?type=store&id=:id" },
+    { "source": "/store", "destination": "/api/link?type=stores" },
+    { "source": "/offers", "destination": "/api/link?type=offers" },
+    { "source": "/", "destination": "/api/link?type=stores" }
+  ],
+  "headers": [
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [{ "key": "Content-Type", "value": "application/json" }]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [{ "key": "Content-Type", "value": "application/json" }]
+    }
+  ]
+}
