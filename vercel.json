@@ -1,6 +1,10 @@
 {
   "rewrites": [
     { "source": "/store/:id", "destination": "/api/link?type=store&id=:id" },
+    { "source": "/listing/:id", "destination": "/api/link?type=listing&id=:id" },
+    { "source": "/offer/:id", "destination": "/api/link?type=gift&id=:id" },
+    { "source": "/offer-discount/:id", "destination": "/api/link?type=discount&id=:id" },
+    { "source": "/offer-bundle/:id", "destination": "/api/link?type=bundle&id=:id" },
     { "source": "/store", "destination": "/api/link?type=stores" },
     { "source": "/offers", "destination": "/api/link?type=offers" },
     { "source": "/", "destination": "/api/link?type=stores" }

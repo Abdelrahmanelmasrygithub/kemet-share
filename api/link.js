@@ -10,12 +10,22 @@
 
 // ===================== ⚙️ الإعدادات - عدّليها =====================
 const CONFIG = {
-  APP_NAME: "KEMET",
-  APP_SCHEME: "thehookainshamsh",
- PLAY_STORE_URL: "https://play.google.com/store/apps/details?id=com.kemet.shop",
-  APP_STORE_URL: "",
+  APP_NAME: "Pyramid Power", // اسم التطبيق اللي يظهر في الصفحة
+  APP_SCHEME: "pyramidpower", // لازم يطابق "scheme" في app.json بالظبط
+  PLAY_STORE_URL: "", // لينك التطبيق على Google Play (سيبيه فاضي لو لسه)
+  APP_STORE_URL: "", // لينك التطبيق على App Store (سيبيه فاضي لو لسه)
   DEFAULT_LOGO:
     "https://bcktrkpbjacbrquimzrg.supabase.co/storage/v1/object/public/category-images/pyramidpower.png",
+  // 🆕 [illustration] نفس الصورة التوضيحية اللي فوق اللوجو في شاشة اللوجين
+  // (app/login.tsx -> assets/images/bg.png)، لكن هنا بنجيبها من رابط
+  // Supabase العام (public) بدل ما تكون asset محلي جوه التطبيق، عشان
+  // صفحة الـ fallback دي بترندر من السيرفر ومالهاش وصول لملفات التطبيق.
+  // ⚠️ الرابط ده بيفترض إن الملف اتربّط (upload) في نفس الـ bucket
+  // "category-images" باسم "bg.png" بالظبط، وإن الـ bucket ده public.
+  // لو الرابط ما اشتغلش (الصورة مش ظاهرة)، يبقى على الأغلب الملف
+  // لسه متحطش في الباكت ده، أو اسمه مختلف، أو الباكت private.
+  DEFAULT_ILLUSTRATION:
+    "https://bcktrkpbjacbrquimzrg.supabase.co/storage/v1/object/public/category-images/bg.png",
 };
 
 const SUPABASE_URL =
@@ -32,6 +42,50 @@ function esc(value) {
         c
       ],
   );
+}
+
+async function fetchOffer(id) {
+  if (!SUPABASE_ANON_KEY) return null;
+  try {
+    const url =
+      `${SUPABASE_URL}/rest/v1/offers` +
+      `?id=eq.${encodeURIComponent(id)}` +
+      `&select=offer_type,discount_type,discount_value,buy_quantity,get_quantity,bundle_price,bundle_quantity,shops(name,logo_url)` +
+      `&limit=1`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchListing(id) {
+  if (!SUPABASE_ANON_KEY) return null;
+  try {
+    const url =
+      `${SUPABASE_URL}/rest/v1/listings` +
+      `?id=eq.${encodeURIComponent(id)}` +
+      `&select=title,price,description,listing_images(image_url,sort_order),shops(name)` +
+      `&limit=1`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchShop(id) {
@@ -94,12 +148,29 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
   }
   .card {
     width: 100%; max-width: 380px; background: #fff; border: 1px solid #ECE7DE;
-    border-radius: 24px; padding: 28px 22px; text-align: center;
+    border-radius: 24px; text-align: center; overflow: hidden;
     box-shadow: 0 10px 30px rgba(0,0,0,.06);
+  }
+  /* 🆕 [illustration] بانر عريض فوق الكارت - نفس الصورة اللي في شاشة
+     اللوجين. object-fit: contain (مش cover) عشان الصورة كبيرة ونسبة
+     أبعادها مش زي اللوجو الصغير المربع، فمش عايزين نقصّها. لو حابة
+     تملي المساحة بالكامل حتى لو فيه قص بسيط، غيّري contain لـ cover. */
+  .illustration {
+    width: 100%; height: 150px; background: #F0EBE2;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .illustration img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+  }
+  .card-body {
+    /* margin-top سالب عشان اللوجو يركب على حافة البانر تحت (زي صورة
+       غلاف بروفايل)، وممكن تشيليه لو عايزة اللوجو يبقى منفصل تمامًا */
+    margin-top: -30px; padding: 0 22px 28px;
   }
   .logo {
     width: 84px; height: 84px; margin: 0 auto 14px; border-radius: 22px;
-    overflow: hidden; background: #F0EBE2; border: 1px solid #ECE7DE;
+    overflow: hidden; background: #F0EBE2; border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.10); position: relative; z-index: 1;
   }
   .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1 { font-size: 20px; margin: 0 0 6px; font-weight: 800; }
@@ -116,13 +187,16 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
 </head>
 <body>
   <main class="card">
-    <div class="logo"><img src="${esc(logo)}" alt=""></div>
-    <h1>${esc(title)}</h1>
-    ${subtitle ? `<p class="sub">${esc(subtitle)}</p>` : ""}
-    ${description ? `<p class="desc">${esc(description)}</p>` : ""}
-    <a class="btn primary" href="${esc(deepLink)}">افتح في التطبيق</a>
-    ${storeButtons}
-    <p class="hint">${esc(hint)}</p>
+    <div class="illustration"><img src="${esc(CONFIG.DEFAULT_ILLUSTRATION)}" alt=""></div>
+    <div class="card-body">
+      <div class="logo"><img src="${esc(logo)}" alt=""></div>
+      <h1>${esc(title)}</h1>
+      ${subtitle ? `<p class="sub">${esc(subtitle)}</p>` : ""}
+      ${description ? `<p class="desc">${esc(description)}</p>` : ""}
+      <a class="btn primary" href="${esc(deepLink)}">افتح في التطبيق</a>
+      ${storeButtons}
+      <p class="hint">${esc(hint)}</p>
+    </div>
   </main>
 </body>
 </html>`;
@@ -149,6 +223,75 @@ module.exports = async (req, res) => {
       logo: (shop && (shop.logo_url || shop.photo_url)) || CONFIG.DEFAULT_LOGO,
       pageUrl: `${origin}/store/${id}`,
       deepLink: `${CONFIG.APP_SCHEME}://store/${id}`,
+    });
+  } else if (type === "listing" && /^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+    const item = await fetchListing(id);
+    const title = (item && item.title && item.title.trim()) || "منتج على التطبيق";
+    const images = item && Array.isArray(item.listing_images)
+      ? [...item.listing_images].sort(
+          (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+        )
+      : [];
+    const priceLabel =
+      item && item.price != null
+        ? `${Number(item.price).toLocaleString("ar-EG")} ج.م`
+        : "";
+    const shopName = item && item.shops && item.shops.name;
+    page = renderPage({
+      title,
+      subtitle: priceLabel || undefined,
+      description:
+        (item && item.description) ||
+        (shopName ? `من متجر ${shopName} على ${CONFIG.APP_NAME}` : `شوف ${title} على ${CONFIG.APP_NAME}`),
+      image: images[0]?.image_url || CONFIG.DEFAULT_LOGO,
+      logo: images[0]?.image_url || CONFIG.DEFAULT_LOGO,
+      pageUrl: `${origin}/listing/${id}`,
+      deepLink: `${CONFIG.APP_SCHEME}://listing/${id}`,
+    });
+  } else if (
+    (type === "gift" || type === "discount" || type === "bundle") &&
+    /^[A-Za-z0-9_-]{1,64}$/.test(id)
+  ) {
+    const offer = await fetchOffer(id);
+    const shopName = (offer && offer.shops && offer.shops.name) || CONFIG.APP_NAME;
+    const image = (offer && offer.shops && offer.shops.logo_url) || CONFIG.DEFAULT_LOGO;
+
+    let title, description, deepLinkPath, pagePath;
+    if (type === "gift") {
+      const buyQ = (offer && offer.buy_quantity) || 1;
+      const getQ = (offer && offer.get_quantity) || 1;
+      title = `هدايا من ${shopName}`;
+      description = `اشترِ ${buyQ} واحصل على ${getQ} ${getQ === 1 ? "هدية مجانًا" : "هدايا مجانًا"} من ${shopName}`;
+      deepLinkPath = "offer";
+      pagePath = "offer";
+    } else if (type === "discount") {
+      const buyQ = (offer && offer.buy_quantity) || 1;
+      const getQ = (offer && offer.get_quantity) || 1;
+      const discountLabel =
+        offer && offer.discount_type === "percentage"
+          ? `${offer.discount_value ?? 0}%`
+          : `${(offer && offer.discount_value) || 0} ج.م`;
+      title = `خصم من ${shopName}`;
+      description = `اشترِ ${buyQ} واحصل على خصم ${discountLabel} على ${getQ} ${getQ === 1 ? "قطعة" : "قطع"} من ${shopName}`;
+      deepLinkPath = "offer-discount";
+      pagePath = "offer-discount";
+    } else {
+      const bq = (offer && offer.bundle_quantity) || 1;
+      const bp = offer && offer.bundle_price != null ? Number(offer.bundle_price).toLocaleString("ar-EG") : "0";
+      title = `عرض مجمّع من ${shopName}`;
+      description = `جمع ${bq} قطع وادفع ${bp} ج.م بس من ${shopName}`;
+      deepLinkPath = "offer-bundle";
+      pagePath = "offer-bundle";
+    }
+
+    page = renderPage({
+      title,
+      subtitle: shopName,
+      description,
+      image,
+      logo: image,
+      pageUrl: `${origin}/${pagePath}/${id}`,
+      deepLink: `${CONFIG.APP_SCHEME}://${deepLinkPath}/${id}`,
     });
   } else if (type === "offers") {
     page = renderPage({
