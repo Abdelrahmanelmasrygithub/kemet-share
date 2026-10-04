@@ -11,7 +11,10 @@
 // ===================== ⚙️ الإعدادات - عدّليها =====================
 const CONFIG = {
   APP_NAME: "KEMET", // اسم التطبيق اللي يظهر في الصفحة
-  APP_SCHEME: "pyramidpower", // لازم يطابق "scheme" في app.json بالظبط
+  // 🛠️ [إصلاح] كانت "pyramidpower" وده مش مطابق للـ scheme الفعلي في
+  // app.json ("thehookainshamsh") - فزرار "افتح في التطبيق" كان بيحاول
+  // يفتح scheme التطبيق مش مسجّله. لازم تفضل مطابقة لـ app.json بالظبط.
+  APP_SCHEME: "thehookainshamsh", // لازم يطابق "scheme" في app.json بالظبط
  PLAY_STORE_URL: "https://play.google.com/store/apps/details?id=com.kemet.shop", // لينك التطبيق على Google Play (سيبيه فاضي لو لسه)
   APP_STORE_URL: "", // لينك التطبيق على App Store (سيبيه فاضي لو لسه)
   DEFAULT_LOGO:
