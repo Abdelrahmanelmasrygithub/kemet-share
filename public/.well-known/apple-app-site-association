@@ -2,11 +2,15 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["YOURTEAMID.your.ios.bundle.identifier"],
+        "appIDs": ["YOURTEAMID.com.kemet.shop"],
         "components": [
           { "/": "/store/*" },
           { "/": "/store" },
-          { "/": "/offers" }
+          { "/": "/offers" },
+          { "/": "/listing/*" },
+          { "/": "/offer/*" },
+          { "/": "/offer-discount/*" },
+          { "/": "/offer-bundle/*" }
         ]
       }
     ]

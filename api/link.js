@@ -112,7 +112,7 @@ async function fetchShop(id) {
   }
 }
 
-function renderPage({ title, description, image, pageUrl, deepLink, logo, subtitle }) {
+function renderPage({ title, description, image, pageUrl, deepLink, logo, subtitle, shopId }) {
   const storeButtons = [
     CONFIG.PLAY_STORE_URL
       ? `<a class="btn secondary" href="${esc(CONFIG.PLAY_STORE_URL)}">تحميل من Google Play</a>`
@@ -126,6 +126,398 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
     CONFIG.PLAY_STORE_URL || CONFIG.APP_STORE_URL
       ? "لو التطبيق مش عندك، حمّله من هنا وبعدها افتح اللينك تاني."
       : "التطبيق قريبًا على المتاجر.";
+
+  // 🆕 [عرض المنتجات] بيظهر في صفحة المتجر بس (لما shopId موجود).
+  // الزرار بيفتح قسم المنتجات اللي بيتحمّل من /api/products وفيه فلاتر،
+  // ومعاه تنبيه إن الطلب بيتم من تطبيق KEMET بس + لينكات التحميل.
+  const productsButton = shopId
+    ? `<button type="button" class="btn outline" id="showProducts" aria-expanded="false" aria-controls="products">اضغط لعرض المنتجات</button>`
+    : "";
+
+  const productsPanel = shopId
+    ? `<section class="products" id="products" data-shop="${esc(shopId)}" hidden>
+        <div class="notice">
+          <strong>لطلب أوردر:</strong> لازم تحمّل تطبيق ${esc(CONFIG.APP_NAME)} وتطلب منه. الموقع هنا للتصفح بس. عروض "اشترِ واحصل" و"السعر المجمّع" وعروض المتابعين بتتطبق وبتظهر كاملة داخل التطبيق.
+          ${storeButtons || `<div class="notice-soon">التطبيق قريبًا على المتاجر.</div>`}
+        </div>
+        <div class="offers" id="pOffers" hidden>
+          <div class="offers-title">تصفح العروض</div>
+          <div class="ostrip" id="pChips"></div>
+        </div>
+        <div class="obanner" id="pBanner" hidden>
+          <button type="button" id="pBannerX" aria-label="مسح فلتر العرض">×</button>
+          <span id="pBannerText"></span>
+        </div>
+        <div class="filters" id="pFilters"></div>
+        <div class="pmeta"><span id="pCount"></span><button type="button" class="pclear" id="pClear" hidden>مسح الفلاتر</button></div>
+        <div class="pstatus" id="pStatus"></div>
+        <div class="pgrid" id="pGrid"></div>
+      </section>`
+    : "";
+
+  const productsScript = shopId
+    ? `<script>
+(function () {
+  var btn = document.getElementById("showProducts");
+  var panel = document.getElementById("products");
+  var card = document.querySelector(".card");
+  if (!btn || !panel || !card) return;
+
+  var shopId = panel.getAttribute("data-shop");
+  var filtersBox = document.getElementById("pFilters");
+  var countEl = document.getElementById("pCount");
+  var clearBtn = document.getElementById("pClear");
+  var statusEl = document.getElementById("pStatus");
+  var grid = document.getElementById("pGrid");
+  var offersBox = document.getElementById("pOffers");
+  var chipsEl = document.getElementById("pChips");
+  var bannerEl = document.getElementById("pBanner");
+  var bannerText = document.getElementById("pBannerText");
+  var bannerX = document.getElementById("pBannerX");
+
+  var items = [];
+  var offers = [];
+  var categories = [];
+  var selectedOfferId = null;
+  var offerFilter = null; // Set من ids المنتجات، أو null = من غير فلتر عرض
+  var loaded = false;
+  var loading = false;
+  var filters = { gender: "", category: "", type: "", color: "", size: "" };
+
+  // نفس تسميات وترتيب StoreFiltersModal في التطبيق: حريمي، رجالي، أطفالي
+  var GENDER_ORDER = ["women", "men", "kids"];
+  var GENDER_LABELS = {
+    women: "حريمي",
+    men: "رجالي",
+    kids: "أطفالي",
+    unisex: "للجنسين"
+  };
+
+  // نفس COLOR_HEX_MAP في ListingCard.tsx (نقط الألوان فوق الصورة)
+  var COLOR_HEX = {
+    "أسود": "#1C1C1C", "أبيض": "#FFFFFF", "رمادي": "#9E9E9E", "كحلي": "#1B2A4A",
+    "أزرق": "#2F6FED", "أزرق فاتح": "#8FC1E8", "أحمر": "#D0342C", "بورجندي": "#6E1E28",
+    "وردي": "#F0A8C0", "بنفسجي": "#7A4EA3", "موف": "#B497C4", "أخضر": "#2E7D4F",
+    "أخضر زيتي": "#6B7A3A", "تركواز": "#2FB6A8", "أصفر": "#F2D035", "برتقالي": "#EF8C2B",
+    "بني": "#6B4A2F", "بيج": "#E4D2B0", "كريمي": "#F2E8D5", "أوف وايت": "#F5F1E9",
+    "ذهبي": "#C6A15B", "فضي": "#C4C4C4", "متعدد الألوان": "#B9B2A6"
+  };
+
+  function colorHex(c) {
+    if (COLOR_HEX[c]) return COLOR_HEX[c];
+    if (String(c).charAt(0) === "#") return c;
+    return "#CFCAC0";
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function uniq(arr) {
+    var seen = {};
+    var out = [];
+    arr.forEach(function (v) {
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    return out;
+  }
+
+  function flat(key) {
+    var all = [];
+    items.forEach(function (it) { all = all.concat(it[key] || []); });
+    return uniq(all);
+  }
+
+  function labelFor(key, value) {
+    if (key === "gender") return GENDER_LABELS[value] || value;
+    return value;
+  }
+
+  function hasActiveFilters() {
+    return !!(filters.gender || filters.category || filters.type || filters.color || filters.size);
+  }
+
+  function matches(it) {
+    // فلتر العرض المختار من شريط العروض بيتفحص الأول، وبيشتغل مع باقي الفلاتر (AND)
+    if (offerFilter && !offerFilter.has(it.id)) return false;
+    // نفس منطق التطبيق: الجنس "للجنسين" بيظهر مع أي اختيار جنس
+    if (filters.gender && it.gender !== filters.gender && it.gender !== "unisex") return false;
+    if (filters.category && it.category !== filters.category) return false;
+    if (filters.type && it.type !== filters.type) return false;
+    if (filters.color && (it.colors || []).indexOf(filters.color) < 0) return false;
+    if (filters.size && (it.sizes || []).indexOf(filters.size) < 0) return false;
+    return true;
+  }
+
+  function buildFilters() {
+    filtersBox.textContent = "";
+    var defs = [
+      { key: "gender", label: "الجنس", values: uniq(items.map(function (i) { return i.gender; })).filter(function (v) { return v !== "unisex"; }).sort(function (a, b) { return GENDER_ORDER.indexOf(a) - GENDER_ORDER.indexOf(b); }) },
+      { key: "category", label: "القسم", values: uniq(items.map(function (i) { return i.category; })) },
+      { key: "type", label: "النوع", values: uniq(items.map(function (i) { return i.type; })) },
+      { key: "color", label: "اللون", values: flat("colors") },
+      { key: "size", label: "المقاس", values: flat("sizes") }
+    ];
+    defs.forEach(function (d) {
+      if (d.values.length < 2) return;
+      var wrap = el("label", "");
+      wrap.appendChild(el("span", "", d.label));
+      var sel = el("select", "");
+      sel.setAttribute("data-key", d.key);
+      var all = el("option", "", "الكل");
+      all.value = "";
+      sel.appendChild(all);
+      d.values.forEach(function (v) {
+        var o = el("option", "", labelFor(d.key, v));
+        o.value = v;
+        sel.appendChild(o);
+      });
+      sel.value = filters[d.key];
+      sel.addEventListener("change", function () {
+        filters[d.key] = sel.value;
+        render();
+      });
+      wrap.appendChild(sel);
+      filtersBox.appendChild(wrap);
+    });
+  }
+
+  function money(n) {
+    return Number(n).toLocaleString("ar-EG") + " ج.م";
+  }
+
+  // كارت المنتج - نفس ListingCard.tsx: ريبون مائل (أكتر من عرض / خصم) أو بار أسفل
+  // الصورة (مجاني / بخصم / مجمّع)، نقط الألوان بتتدفع لفوق لو فيه بار
+  function productCard(it) {
+    var a = el("a", "pcard");
+    a.href = "/listing/" + encodeURIComponent(it.id);
+
+    var w = el("div", "pimgw");
+    if (it.image) {
+      var img = el("img", "pimg");
+      img.src = it.image;
+      img.alt = "";
+      img.loading = "lazy";
+      w.appendChild(img);
+    }
+
+    var b = it.badge;
+    var barClass = "";
+    if (b && b.kind === "bogo") barClass = "bogo";
+    else if (b && b.kind === "bogoDiscount") barClass = "bogod";
+    else if (b && b.kind === "bundle") barClass = "bundle";
+
+    if (it.colors && it.colors.length) {
+      var dots = el("div", barClass ? "dots lifted" : "dots");
+      it.colors.slice(0, 4).forEach(function (c) {
+        var d = el("span", "dot");
+        d.style.background = colorHex(c);
+        dots.appendChild(d);
+      });
+      w.appendChild(dots);
+    }
+
+    if (b && b.kind === "multi") w.appendChild(el("div", "ribbon multi", b.text));
+    if (b && b.kind === "discount") w.appendChild(el("div", "ribbon disc", b.text));
+    if (barClass) w.appendChild(el("div", "bar " + barClass, b.text));
+    a.appendChild(w);
+
+    var info = el("div", "pinfo");
+    info.appendChild(el("div", "ptitle", it.title));
+    if (it.ratingCount > 0) {
+      var rate = el("div", "prate");
+      rate.appendChild(el("span", "star", "★"));
+      rate.appendChild(el("span", "", Number(it.rating).toFixed(1) + " (" + it.ratingCount + ")"));
+      info.appendChild(rate);
+    }
+    info.appendChild(el("div", "pprice", money(it.price)));
+    if (it.originalPrice && it.originalPrice > it.price) {
+      info.appendChild(el("div", "pold", money(it.originalPrice)));
+    }
+    a.appendChild(info);
+    return a;
+  }
+
+  function render() {
+    var list = items.filter(matches);
+    grid.textContent = "";
+    list.forEach(function (it) { grid.appendChild(productCard(it)); });
+    countEl.textContent = list.length.toLocaleString("ar-EG") + " منتج";
+    clearBtn.hidden = !hasActiveFilters();
+    if (list.length === 0) {
+      statusEl.textContent = items.length === 0
+        ? "لسه مفيش منتجات في المتجر ده"
+        : "مفيش منتجات مطابقة للفلتر المختار";
+    } else {
+      statusEl.textContent = "";
+    }
+  }
+
+  clearBtn.addEventListener("click", function () {
+    filters = { gender: "", category: "", type: "", color: "", size: "" };
+    buildFilters();
+    render();
+  });
+
+  // ===== شريط تصفح العروض (نفس StoreOffers.tsx في التطبيق) =====
+  // "كل العروض" -> المنتجات اللي عليها أي عرض. فئة/عرض شامل المتجر كله ->
+  // من غير فلترة. غير كده -> المنتجات المرتبطة بالعرض بس. الدوس على المختار تاني يمسحه.
+  var IONICONS_ID = "ionicons-esm";
+
+  function loadIcons() {
+    if (document.getElementById(IONICONS_ID)) return;
+    var s = document.createElement("script");
+    s.id = IONICONS_ID;
+    s.type = "module";
+    s.src = "https://unpkg.com/ionicons@7.4.0/dist/ionicons/ionicons.esm.js";
+    document.head.appendChild(s);
+  }
+
+  function ring(color, active) {
+    var NS = "http://www.w3.org/2000/svg";
+    var size = 52;
+    var sw = active ? 1 : 0.8;
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "oring");
+    svg.setAttribute("width", size);
+    svg.setAttribute("height", size);
+    svg.setAttribute("viewBox", "0 0 " + size + " " + size);
+    var c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", size / 2);
+    c.setAttribute("cy", size / 2);
+    c.setAttribute("r", (size - sw) / 2);
+    c.setAttribute("stroke", color);
+    c.setAttribute("stroke-width", sw);
+    c.setAttribute("fill", "none");
+    c.setAttribute("stroke-dasharray", "2.2, 6");
+    c.setAttribute("stroke-linecap", "round");
+    svg.appendChild(c);
+    return svg;
+  }
+
+  function stripItems() {
+    var all = { id: "__all_offers__", title: "كل العروض", icon: "flame", accent: "#E1523D", bg: "#FDEAEA", count: offers.length, special: true };
+    return [all].concat(categories, offers);
+  }
+
+  function selectOffer(chip) {
+    if (selectedOfferId === chip.id) {
+      clearOffer();
+      return;
+    }
+    selectedOfferId = chip.id;
+    if (chip.special) {
+      var ids = {};
+      items.forEach(function (it) { if (it.hasOffer) ids[it.id] = true; });
+      offerFilter = new Set(Object.keys(ids));
+      bannerText.textContent = "بتشوف كل المنتجات المخفّضة (" + offerFilter.size.toLocaleString("ar-EG") + ")";
+    } else {
+      offerFilter = chip.isAll ? null : new Set(chip.listingIds || []);
+      bannerText.textContent = "بتشوف منتجات: " + chip.title;
+    }
+    bannerEl.hidden = false;
+    renderStrip();
+    render();
+  }
+
+  function clearOffer() {
+    selectedOfferId = null;
+    offerFilter = null;
+    bannerEl.hidden = true;
+    renderStrip();
+    render();
+  }
+
+  bannerX.addEventListener("click", clearOffer);
+
+  function renderStrip() {
+    chipsEl.textContent = "";
+    if (offers.length === 0) {
+      offersBox.hidden = true;
+      return;
+    }
+    stripItems().forEach(function (chip) {
+      var on = selectedOfferId === chip.id;
+      var b = el("button", "ocard");
+      b.type = "button";
+      b.setAttribute("data-id", chip.id);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+
+      var circle = el("div", "ocircle");
+      if (on) {
+        var bg = el("div", "obg");
+        bg.style.background = chip.bg;
+        circle.appendChild(bg);
+      }
+      circle.appendChild(ring(on ? chip.accent : "#C9C9C9", on));
+      var icon = document.createElement("ion-icon");
+      icon.setAttribute("name", chip.icon);
+      icon.style.color = on ? chip.accent : "#111111";
+      circle.appendChild(icon);
+
+      if (chip.badgeText) {
+        var mini = el("span", "omini", chip.badgeText);
+        mini.style.background = chip.accent;
+        circle.appendChild(mini);
+      }
+      if (chip.isNew) circle.appendChild(el("span", "onew", "جديد"));
+      if (chip.count) {
+        var cnt = el("span", "ocnt", Number(chip.count).toLocaleString("ar-EG"));
+        cnt.style.background = chip.accent;
+        circle.appendChild(cnt);
+      }
+
+      b.appendChild(circle);
+      b.appendChild(el("div", "otitle", chip.title));
+      b.addEventListener("click", function () { selectOffer(chip); });
+      chipsEl.appendChild(b);
+    });
+    offersBox.hidden = false;
+  }
+
+  function load() {
+    if (loading) return;
+    loading = true;
+    statusEl.textContent = "جاري تحميل المنتجات...";
+    fetch("/api/products?shop=" + encodeURIComponent(shopId))
+      .then(function (r) {
+        if (!r.ok) throw new Error("bad status");
+        return r.json();
+      })
+      .then(function (data) {
+        items = (data && data.items) || [];
+        offers = (data && data.offers) || [];
+        categories = (data && data.categories) || [];
+        loaded = true;
+        if (offers.length > 0) loadIcons();
+        renderStrip();
+        buildFilters();
+        render();
+      })
+      .catch(function () {
+        statusEl.textContent = "تعذر تحميل المنتجات، اضغط على الزرار تاني للمحاولة.";
+        loaded = false;
+      })
+      .then(function () { loading = false; });
+  }
+
+  btn.addEventListener("click", function () {
+    var willOpen = panel.hidden;
+    panel.hidden = !willOpen;
+    card.classList.toggle("wide", willOpen);
+    btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    btn.textContent = willOpen ? "إخفاء المنتجات" : "اضغط لعرض المنتجات";
+    if (willOpen) {
+      if (!loaded) load();
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+})();
+</script>`
+    : "";
 
   return `<!doctype html>
 <html lang="ar" dir="rtl">
@@ -203,9 +595,141 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
   .primary { background: #1C1C1C; color: #fff; }
   .secondary { background: #fff; color: #1C1C1C; border: 1px solid #ECE7DE; }
   .hint { margin: 16px 0 0; font-size: 12px; color: #B9B2A6; }
+
+  /* 🆕 [عرض المنتجات] */
+  body.has-products { align-items: flex-start; }
+  .card.wide { max-width: 760px; }
+  button.btn { width: 100%; font-family: inherit; cursor: pointer; }
+  .outline { background: #fff; color: #1C1C1C; border: 1.5px solid #1C1C1C; }
+  .products {
+    margin-top: 20px; padding-top: 16px; text-align: right;
+    border-top: 1px solid #ECE7DE;
+  }
+  .products[hidden] { display: none; }
+  .notice {
+    background: #FFF7E6; border: 1px solid #F3E2B8; border-radius: 14px;
+    padding: 12px 14px; font-size: 13px; line-height: 1.8; color: #5B4A1E;
+  }
+  .notice .btn { margin-top: 8px; padding: 11px 14px; font-size: 14px; text-align: center; }
+  .notice-soon { margin-top: 6px; font-size: 12px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
+  .filters label {
+    display: flex; flex-direction: column; gap: 4px; flex: 1 1 120px;
+    font-size: 11px; color: #8A8377;
+  }
+  .filters select {
+    font: inherit; font-size: 13px; padding: 9px 10px; color: #1C1C1C;
+    border: 1px solid #ECE7DE; border-radius: 12px; background: #fff;
+  }
+  .pmeta {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 10px 0; font-size: 13px; font-weight: 700;
+  }
+  .pclear {
+    background: none; border: 0; padding: 0; font: inherit; font-size: 12px;
+    color: #2F6FED; cursor: pointer;
+  }
+  .pclear[hidden] { display: none; }
+  .pstatus { text-align: center; color: #8A8377; font-size: 13px; padding: 12px 0; }
+  .pstatus:empty { display: none; }
+
+  /* 🆕 [شريط العروض] - نفس ستايل components/StoreOffers.tsx: دايرة 52px بحلقة
+     منقطة (SVG) وأيقونة Ionicons، شارات صغيرة (قيمة العرض / جديد / عدد العروض) */
+  .offers {
+    margin-top: 14px; padding: 10px 0; background: #fff; border-radius: 22px;
+    box-shadow: 0 2px 8px rgba(28, 28, 28, .04);
+  }
+  .offers[hidden] { display: none; }
+  .offers-title { font-size: 14.5px; font-weight: 800; padding: 0 12px; margin-bottom: 8px; }
+  .ostrip { display: flex; gap: 6px; overflow-x: auto; padding: 8px 12px 2px; scrollbar-width: none; }
+  .ostrip::-webkit-scrollbar { display: none; }
+  .ocard {
+    flex: 0 0 86px; width: 86px; display: flex; flex-direction: column;
+    align-items: center; padding: 4px; border: 0; background: none;
+    font: inherit; color: inherit; border-radius: 16px; cursor: pointer;
+  }
+  .ocard:active { opacity: .85; transform: scale(.96); }
+  .ocircle {
+    position: relative; width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .obg { position: absolute; inset: 0; border-radius: 50%; opacity: .3; }
+  .oring { position: absolute; inset: 0; }
+  .ocircle ion-icon { position: relative; font-size: 18px; }
+  .omini {
+    position: absolute; bottom: -2px; right: -3px; min-width: 22px;
+    padding: 1.3px 3px; border-radius: 7px; border: 1.3px solid #fff;
+    font-size: 8px; font-weight: 800; color: #fff; text-align: center; line-height: 1.2;
+  }
+  .onew {
+    position: absolute; top: -3px; right: -5px; background: #E1523D; color: #fff;
+    border-radius: 5px; padding: 1.2px 4px; font-size: 7px; font-weight: 800;
+  }
+  .ocnt {
+    position: absolute; bottom: -2px; right: -3px; min-width: 15px; height: 15px;
+    padding: 0 3px; border-radius: 7.5px; border: 1.3px solid #fff;
+    font-size: 8px; font-weight: 800; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .otitle {
+    margin-top: 7px; font-size: 9.5px; font-weight: 600; line-height: 14px;
+    min-height: 28px; text-align: center; color: #1C1C1C;
+  }
+  .obanner {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+    padding: 8px 12px; border-radius: 12px; background: #F3EEFC;
+    font-size: 12px; font-weight: 700;
+  }
+  .obanner[hidden] { display: none; }
+  .obanner button {
+    background: none; border: 0; padding: 0; font-size: 18px; line-height: 1;
+    color: #8A8377; cursor: pointer;
+  }
+
+  /* 🆕 [كارت المنتج] - نفس ستايل components/ListingCard.tsx */
+  .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px; }
+  @media (min-width: 640px) { .pgrid { grid-template-columns: repeat(3, 1fr); } }
+  .pcard {
+    display: block; text-decoration: none; color: inherit; background: #fff;
+    border: .5px solid #ECE7DE; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 3px 10px rgba(28, 28, 28, .04);
+  }
+  .pimgw { position: relative; width: 100%; aspect-ratio: 1 / 1.05; overflow: hidden; background: #F0EBE2; }
+  .pimg { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .dots { position: absolute; bottom: 8px; left: 8px; display: flex; gap: 4px; }
+  .dots.lifted { bottom: 26px; }
+  .dot {
+    width: 12px; height: 12px; border-radius: 50%; border: 1px solid #fff;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .15);
+  }
+  .ribbon {
+    position: absolute; top: 15px; right: -38px; width: 130px; padding: 2px 0;
+    transform: rotate(45deg); text-align: center; white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .15); z-index: 5; pointer-events: none;
+  }
+  .ribbon.disc { background: #FFD700; color: #000; font-size: 10px; font-weight: 800; }
+  .ribbon.multi { background: #D64545; color: #fff; font-size: 9.2px; font-weight: 800; padding: 3px 0; }
+  .bar {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 2.4px 6px;
+    text-align: center; font-size: 9.8px; font-weight: 800; line-height: 13px;
+    color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    z-index: 5; pointer-events: none;
+  }
+  .bar.bogo { background: #D64545; }
+  .bar.bogod { background: #1C1C1C; }
+  .bar.bundle { background: #6B7A3A; }
+  .pinfo { padding: 10px; }
+  .ptitle {
+    font-size: 13px; font-weight: 600; color: #1C1C1C; text-align: right;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .prate { display: flex; align-items: center; gap: 3px; margin-top: 4px; font-size: 10.5px; font-weight: 600; color: #8A8377; }
+  .prate .star { color: #F5A623; font-size: 11px; }
+  .pprice { margin-top: 8px; font-size: 13px; font-weight: 700; color: #1C1C1C; }
+  .pold { margin-top: 2px; font-size: 11px; color: #9E9E9E; text-decoration: line-through; }
 </style>
 </head>
-<body>
+<body${shopId ? ' class="has-products"' : ""}>
   <main class="card">
     <div class="illustration"><img src="${esc(CONFIG.DEFAULT_ILLUSTRATION)}" alt=""></div>
     <div class="card-body">
@@ -214,10 +738,13 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
       ${subtitle ? `<p class="sub">${esc(subtitle)}</p>` : ""}
       ${description ? `<p class="desc">${esc(description)}</p>` : ""}
       <a class="btn primary" href="${esc(deepLink)}">افتح في التطبيق</a>
+      ${productsButton}
       ${storeButtons}
       <p class="hint">${esc(hint)}</p>
+      ${productsPanel}
     </div>
   </main>
+  ${productsScript}
 </body>
 </html>`;
 }
@@ -243,6 +770,7 @@ module.exports = async (req, res) => {
       logo: (shop && (shop.logo_url || shop.photo_url)) || CONFIG.DEFAULT_LOGO,
       pageUrl: `${origin}/store/${id}`,
       deepLink: `${CONFIG.APP_SCHEME}://store/${id}`,
+      shopId: id, // 🆕 بيفعّل زرار "اضغط لعرض المنتجات"
     });
   } else if (type === "listing" && /^[A-Za-z0-9_-]{1,64}$/.test(id)) {
     const item = await fetchListing(id);
