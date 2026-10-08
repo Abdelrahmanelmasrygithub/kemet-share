@@ -401,7 +401,7 @@ module.exports = async (req, res) => {
     const rows = await sbGet(
       `listings?shop_id=eq.${encodeURIComponent(shopId)}` +
         `&status=eq.available` +
-        `&select=id,title,price,description,product_type,size,color,gender,is_featured,created_at,categories(name),listing_images(image_url,sort_order)` +
+        `&select=id,title,price,description,location,product_type,size,color,gender,is_featured,created_at,categories(name),listing_images(image_url,sort_order)` +
         `&order=created_at.desc&limit=200`,
     );
     if (!rows) {
@@ -425,6 +425,7 @@ module.exports = async (req, res) => {
           title: row.title,
           price: Number(row.price),
           image: imgs[0]?.image_url || "",
+          location: (row.location || "").trim(),
           category: (row.categories && row.categories.name) || "أخرى",
           type: row.product_type || "",
           sizes: parseList(row.size),

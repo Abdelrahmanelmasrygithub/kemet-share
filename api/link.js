@@ -291,7 +291,7 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
 
   // كارت المنتج - نفس ListingCard.tsx: ريبون مائل (أكتر من عرض / خصم) أو بار أسفل
   // الصورة (مجاني / بخصم / مجمّع)، نقط الألوان بتتدفع لفوق لو فيه بار
-  function productCard(it) {
+  function productCard(it, reserveOld) {
     var a = el("a", "pcard");
     a.href = "/listing/" + encodeURIComponent(it.id);
 
@@ -333,18 +333,55 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
       rate.appendChild(el("span", "", Number(it.rating).toFixed(1) + " (" + it.ratingCount + ")"));
       info.appendChild(rate);
     }
-    info.appendChild(el("div", "pprice", money(it.price)));
-    if (it.originalPrice && it.originalPrice > it.price) {
-      info.appendChild(el("div", "pold", money(it.originalPrice)));
+    // صف الموقع (نفس distanceText في التطبيق: distanceLabel ?? location - على الويب مفيش مسافة فبنعرض location)
+    if (it.location) {
+      var loc = el("div", "ploc");
+      loc.appendChild(pinIcon());
+      loc.appendChild(el("span", "", it.location));
+      info.appendChild(loc);
     }
+    var bottom = el("div", "pbottom");
+    bottom.appendChild(el("div", "pprice", money(it.price)));
+    if (it.originalPrice && it.originalPrice > it.price) {
+      bottom.appendChild(el("div", "pold", money(it.originalPrice)));
+    } else if (reserveOld) {
+      // لو فيه كروت مخفّضة في القايمة، بنحجز سطر السعر القديم (مخفي) في الباقي عشان
+      // الأسعار تتساوى على نفس الخط جنب بعض
+      bottom.appendChild(el("div", "pold ghost", "٠"));
+    }
+    info.appendChild(bottom);
     a.appendChild(info);
     return a;
+  }
+
+  // أيقونة location-outline (نفس شكل Ionicons) كـ SVG مدمج عشان متعتمدش على أي CDN
+  function pinIcon() {
+    var NS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 512 512");
+    svg.setAttribute("aria-hidden", "true");
+    var path = document.createElementNS(NS, "path");
+    path.setAttribute("d", "M256 48c-79.5 0-144 61.39-144 137 0 87 96 224.87 131.25 272.49a15.77 15.77 0 0025.5 0C304 409.89 400 272.07 400 185c0-75.61-64.5-137-144-137z");
+    var circle = document.createElementNS(NS, "circle");
+    circle.setAttribute("cx", "256");
+    circle.setAttribute("cy", "192");
+    circle.setAttribute("r", "48");
+    [path, circle].forEach(function (n) {
+      n.setAttribute("fill", "none");
+      n.setAttribute("stroke", "currentColor");
+      n.setAttribute("stroke-linecap", "round");
+      n.setAttribute("stroke-linejoin", "round");
+      n.setAttribute("stroke-width", "32");
+      svg.appendChild(n);
+    });
+    return svg;
   }
 
   function render() {
     var list = items.filter(matches);
     grid.textContent = "";
-    list.forEach(function (it) { grid.appendChild(productCard(it)); });
+    var anyOld = list.some(function (it) { return it.originalPrice && it.originalPrice > it.price; });
+    list.forEach(function (it) { grid.appendChild(productCard(it, anyOld)); });
     countEl.textContent = list.length.toLocaleString("ar-EG") + " منتج";
     clearBtn.hidden = !hasActiveFilters();
     if (list.length === 0) {
@@ -508,6 +545,7 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
     var willOpen = panel.hidden;
     panel.hidden = !willOpen;
     card.classList.toggle("wide", willOpen);
+    document.body.classList.toggle("products-open", willOpen);
     btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
     btn.textContent = willOpen ? "إخفاء المنتجات" : "اضغط لعرض المنتجات";
     if (willOpen) {
@@ -598,7 +636,15 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
 
   /* 🆕 [عرض المنتجات] */
   body.has-products { align-items: flex-start; }
-  .card.wide { max-width: 760px; }
+  .card.wide { max-width: 880px; }
+  /* موبايل: لما المنتجات تتفتح الكارت الأبيض بياخد عرض الشاشة كله والشبكة بتاخد
+     هوامش 12px بس - فعرض كارت المنتج بيطلع (عرض الشاشة - 36) ÷ 2 بالظبط زي
+     CARD_WIDTH في ListingCard.tsx (CARD_GAP = 12) */
+  @media (max-width: 639px) {
+    body.products-open { padding: 0; }
+    .card.wide { max-width: none; border-radius: 0; box-shadow: none; }
+    .card.wide .products { margin-inline: -22px; padding-inline: 12px; }
+  }
   button.btn { width: 100%; font-family: inherit; cursor: pointer; }
   .outline { background: #fff; color: #1C1C1C; border: 1.5px solid #1C1C1C; }
   .products {
@@ -687,14 +733,25 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
   }
 
   /* 🆕 [كارت المنتج] - نفس ستايل components/ListingCard.tsx */
-  .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px; }
-  @media (min-width: 640px) { .pgrid { grid-template-columns: repeat(3, 1fr); } }
-  .pcard {
-    display: block; text-decoration: none; color: inherit; background: #fff;
-    border: .5px solid #ECE7DE; border-radius: 16px; overflow: hidden;
-    box-shadow: 0 3px 10px rgba(28, 28, 28, .04);
+  /* مقاسات الكارت مطابقة للتطبيق: العرض (W - 36) / 2 على الموبايل (عمودين، فجوة 12)،
+     وارتفاع الصورة = العرض × 1.05 (IMAGE_HEIGHT في ListingCard.tsx). على الشاشات
+     الكبيرة بنثبّت العرض 184px (حوالي عرض الكارت على موبايل عادي) وبنسيب عدد
+     الأعمدة يتحدد حسب المساحة */
+  .pgrid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+    margin-top: 10px; align-items: stretch;
   }
-  .pimgw { position: relative; width: 100%; aspect-ratio: 1 / 1.05; overflow: hidden; background: #F0EBE2; }
+  @media (min-width: 640px) {
+    .pgrid { grid-template-columns: repeat(auto-fill, 184px); justify-content: center; }
+  }
+  .pcard {
+    display: flex; flex-direction: column; text-decoration: none; color: inherit;
+    background: #fff; border-radius: 16px; overflow: hidden;
+    /* البوردر الخفيف (0.5px في التطبيق) مرسوم كحلقة خارجية بدل border عشان مياكلش من
+       عرض الصورة - فالصورة تاخد عرض الكارت كامل وارتفاعها = العرض × 1.05 بالظبط */
+    box-shadow: 0 0 0 .5px #ECE7DE, 0 3px 10px rgba(28, 28, 28, .04);
+  }
+  .pimgw { position: relative; flex: 0 0 auto; width: 100%; aspect-ratio: 1 / 1.05; overflow: hidden; background: #F0EBE2; }
   .pimg { display: block; width: 100%; height: 100%; object-fit: cover; }
   .dots { position: absolute; bottom: 8px; left: 8px; display: flex; gap: 4px; }
   .dots.lifted { bottom: 26px; }
@@ -718,15 +775,29 @@ function renderPage({ title, description, image, pageUrl, deepLink, logo, subtit
   .bar.bogo { background: #D64545; }
   .bar.bogod { background: #1C1C1C; }
   .bar.bundle { background: #6B7A3A; }
-  .pinfo { padding: 10px; }
+  .pinfo { flex: 1 1 auto; display: flex; flex-direction: column; padding: 10px; }
   .ptitle {
-    font-size: 13px; font-weight: 600; color: #1C1C1C; text-align: right;
+    font-size: 13px; font-weight: 600; line-height: 1.4; color: #1C1C1C; text-align: right;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .prate { display: flex; align-items: center; gap: 3px; margin-top: 4px; font-size: 10.5px; font-weight: 600; color: #8A8377; }
-  .prate .star { color: #F5A623; font-size: 11px; }
-  .pprice { margin-top: 8px; font-size: 13px; font-weight: 700; color: #1C1C1C; }
+  /* صف التقييم على الشمال (flexDirection: "row" في التطبيق)، وصف الموقع على اليمين (row-reverse) */
+  .prate {
+    display: flex; direction: ltr; justify-content: flex-start; align-items: center;
+    gap: 3px; margin-top: 4px; font-size: 10.5px; font-weight: 600; color: #8A8377;
+  }
+  .prate .star { color: #F5A623; font-size: 11px; line-height: 1; }
+  .ploc {
+    display: flex; align-items: center; gap: 3px; margin-top: 4px;
+    font-size: 10.5px; line-height: 1.3; color: #B9B2A6;
+  }
+  .ploc svg { flex: 0 0 auto; width: 11px; height: 11px; }
+  .ploc span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* صف السعر بيتثبّت أسفل الكارت عشان الأسعار تتساوى في نفس الصف حتى لو كروت جنب بعض
+     اختلف عدد صفوف المعلومات فيها */
+  .pbottom { margin-top: auto; padding-top: 8px; direction: ltr; text-align: left; }
+  .pprice { font-size: 13px; font-weight: 700; color: #1C1C1C; }
   .pold { margin-top: 2px; font-size: 11px; color: #9E9E9E; text-decoration: line-through; }
+  .pold.ghost { visibility: hidden; }
 </style>
 </head>
 <body${shopId ? ' class="has-products"' : ""}>
